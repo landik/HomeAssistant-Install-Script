@@ -24,12 +24,14 @@ while :
 	echo -en "\n"
 	echo "     ┌─ Выберите действие: ──────────────────────────────────────────────┐"
 	echo "     │                                                                   │"
-	echo -en "\n" 
+	echo -en "\n"
 	echo "           1 - Установка Home Assistant на чистой системе $InstallInfo"
 	echo -en "\n"
 	echo "           2 - Установка Home Assistant с полным удалением старой версии $ReinstallInfo"
 	echo -en "\n"
 	echo "           3 - Полное удаление Home Assistant с очисткой системы $UninstallInfo"
+	echo -en "\n"
+	echo "           4 - Установка Supervised Home Assistant"
 	echo -en "\n"
 	echo "           0 - Завершение работы с самоудалением скрипта"
 	echo -en "\n"
@@ -50,6 +52,8 @@ while :
 		2) 	cmdkey=1 ; UninstallScript ; cmdkey=0 ; InstallScript ;;
 
 		3) 	ReinstallInfo="" ; UninstallScript ;;
+
+    4) InstallSupervisor;;
 
 		D|d) 	RremovalItself ;;
 
@@ -102,19 +106,19 @@ function BackUpScript() {
 
 	HA_SOURCE=/usr/share/hassio/homeassistant
 	[ ! -d $HA_SOURCE ] && CheckBackUp=1 && sudo tar cfz $BackupsFolder/$(date +'%Y.%m.%d')-config.tgz -C $HA_SOURCE . > /dev/null 2>&1
-	[ ! -f $HA_SOURCE/configuration.yaml ] && CheckBackUp=1 && sudo cp -f $HA_SOURCE/configuration.yaml $BackupsFolder/configuration.yaml.$(date +%s)000 >/dev/null 2>&1 
-	
+	[ ! -f $HA_SOURCE/configuration.yaml ] && CheckBackUp=1 && sudo cp -f $HA_SOURCE/configuration.yaml $BackupsFolder/configuration.yaml.$(date +%s)000 >/dev/null 2>&1
+
 	HA_SOURCE=/home/$USER/.homeassistant
 	[ ! -d $HA_SOURCE ] && CheckBackUp=1 && sudo tar cfz $BackupsFolder/$(date +'%Y.%m.%d')-config.tgz -C $HA_SOURCE . > /dev/null 2>&1
-	[ ! -f $HA_SOURCE/configuration.yaml ] && CheckBackUp=1 && sudo cp -f $HA_SOURCE/configuration.yaml $BackupsFolder/configuration.yaml.$(date +%s)000 >/dev/null 2>&1 
-	
+	[ ! -f $HA_SOURCE/configuration.yaml ] && CheckBackUp=1 && sudo cp -f $HA_SOURCE/configuration.yaml $BackupsFolder/configuration.yaml.$(date +%s)000 >/dev/null 2>&1
+
 	HA_SOURCE=/home/$USER/homeassistant
 	[ ! -d $HA_SOURCE ] && CheckBackUp=1 && sudo tar cfz $BackupsFolder/$(date +'%Y.%m.%d')-config.tgz -C $HA_SOURCE . > /dev/null 2>&1
-	[ ! -f $HA_SOURCE/configuration.yaml ] && CheckBackUp=1 && sudo cp -f $HA_SOURCE/configuration.yaml $BackupsFolder/configuration.yaml.$(date +%s)000 >/dev/null 2>&1  
+	[ ! -f $HA_SOURCE/configuration.yaml ] && CheckBackUp=1 && sudo cp -f $HA_SOURCE/configuration.yaml $BackupsFolder/configuration.yaml.$(date +%s)000 >/dev/null 2>&1
 
 	HA_SOURCE=/home/homeassistant/.homeassistant
 	[ ! -d $HA_SOURCE ] && CheckBackUp=1 && sudo tar cfz $BackupsFolder/$(date +'%Y.%m.%d')-config.tgz -C $HA_SOURCE . > /dev/null 2>&1
-	[ ! -f $HA_SOURCE/configuration.yaml ] && CheckBackUp=1 && sudo cp -f $HA_SOURCE/configuration.yaml $BackupsFolder/configuration.yaml.$(date +%s)000 >/dev/null 2>&1  
+	[ ! -f $HA_SOURCE/configuration.yaml ] && CheckBackUp=1 && sudo cp -f $HA_SOURCE/configuration.yaml $BackupsFolder/configuration.yaml.$(date +%s)000 >/dev/null 2>&1
 
 if [ $CheckBackUp -eq 1 ]; then
 	echo -en "\n" ; echo "  # # Создание резервной копии конфигурационных файлов Home Assistant..."
@@ -164,7 +168,9 @@ sudo apt-get install tzdata -y > /dev/null
 #sudo apt-get install -y libavahi-compat-libdnssd-dev > /dev/null
 
 echo -en "\n" ; echo "  # # Создание аккаунта homeassistant..."
-sudo useradd -rm homeassistant -G dialout,gpio,i2c > /dev/null
+# У rock pi e нет этих групп
+#sudo useradd -rm homeassistant -G dialout,gpio,i2c > /dev/null
+sudo useradd -rm homeassistant > /dev/null
 sudo mkdir /srv/homeassistant
 sudo chown homeassistant:homeassistant /srv/homeassistant
 
@@ -291,7 +297,7 @@ if [ -f $BackupsFolder/* ]; then
 
 	BackupRecovery=1 && echo -en "\n" && echo "  # # Восстанавление резервной копии Home Assistant в папку backup..."
 
-	if [ ! -d /home/homeassistant/.homeassistant/backup ] ; then 
+	if [ ! -d /home/homeassistant/.homeassistant/backup ] ; then
 		sudo mkdir -p /home/homeassistant/.homeassistant/backup/ && sudo chown homeassistant.homeassistant /home/homeassistant/.homeassistant/backup/
 	fi
 	sudo mv -f $BackupsFolder/* /home/homeassistant/.homeassistant/backup/
@@ -466,6 +472,45 @@ function print_help() {
 exit 0
 }
 
+function InstallSupervisor() {
+  clear;
+
+  echo -en "\n" ; echo "  # # Установка Supervised Home Assistant";
+  echo -en "\n" ; echo "  # # Установка зависимостей...";
+
+  sudo apt-get install jq -y > /dev/null
+  sudo apt-get install wget -y > /dev/null
+  sudo apt-get install curl -y > /dev/null
+  sudo apt-get install udisks2 -y > /dev/null
+  sudo apt-get install apparmor-utils -y > /dev/null
+  sudo apt-get install libglib2.0-bin -y > /dev/null
+  sudo apt-get install network-manager -y > /dev/null
+  sudo apt-get install dbus -y > /dev/null
+  sudo apt-get install systemd-journal-remote -y > /dev/null
+#  sudo apt –fix-broken install
+
+  echo -en "\n" ; echo "  # # Запуск и активация NetworkManager...";
+
+  systemctl start NetworkManager > /dev/null
+  systemctl enable NetworkManager > /dev/null
+
+  echo -en "\n" ; echo "  # # Установка Docker...";
+  sudo -s bash -c "curl -fsSL get.docker.com | sh";
+
+  echo -en "\n" ; echo "  # # Установка OS-Agent...";
+
+  wget https://github.com/home-assistant/os-agent/releases/download/1.5.1/os-agent_1.5.1_linux_aarch64.deb
+  sudo dpkg -i os-agent_1.5.1_linux_aarch64.deb
+
+  echo -en "\n" ; echo "  # # Установка Supervised...";
+
+  wget https://github.com/home-assistant/supervised-installer/releases/latest/download/homeassistant-supervised.deb
+  sudo dpkg -i homeassistant-supervised.deb
+
+  read -p "${green}           Нажмите любую клавишу, чтобы вернуться в главное меню...${reset}"
+  sleep 1
+  GoToMenu
+}
 
 
 
@@ -479,7 +524,7 @@ while getopts ":uUiIrRhHdD" Option
 	do
 
 	cmdkey=1
- 
+
 	case $Option in
 
 		I|i) 	InstallScript ;;
